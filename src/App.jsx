@@ -722,6 +722,7 @@ export default function App() {
   const [photoStatus, setPhotoStatus] = useState(null);
   const [photoMsg, setPhotoMsg]     = useState('');
   const [importing, setImporting]   = useState(false);
+  const [confirmNew, setConfirmNew] = useState(false);
   const fileRef   = useRef(null);
   const timerRef  = useRef(null);
   const bannerRef = useRef(null);
@@ -1058,7 +1059,7 @@ export default function App() {
 
             {/* Action buttons */}
             <div className="action-card">
-              <button className={`action-btn primary${generating ? ' disabled' : ''}`} onClick={handleNewGame}>
+              <button className={`action-btn primary${generating ? ' disabled' : ''}`} onClick={() => setConfirmNew(true)}>
                 {generating
                   ? <><div className="spin"/><span>Generating…</span></>
                   : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg><span>New Expert Puzzle</span></>}
@@ -1074,6 +1075,19 @@ export default function App() {
       </div>
 
       {win && <WinModal seconds={seconds} mistakes={mistakes} onNewGame={() => { setWin(false); handleNewGame(); }} />}
+      {confirmNew && (
+        <div className="overlay" style={{zIndex:300}}>
+          <div className="modal" style={{maxWidth:300}}>
+            <div className="modal-emoji">⚠️</div>
+            <div className="modal-title" style={{fontSize:20,color:C.given}}>Start New Puzzle?</div>
+            <div className="modal-sub" style={{marginBottom:24}}>Your current progress will be lost.</div>
+            <div style={{display:'flex',gap:10}}>
+              <button className="modal-btn" style={{background:'#f1f5f9',color:C.given,boxShadow:'none',border:`1.5px solid ${C.border}`}} onClick={() => setConfirmNew(false)}>Cancel</button>
+              <button className="modal-btn" onClick={() => { setConfirmNew(false); handleNewGame(); }}>Yes, new puzzle</button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
