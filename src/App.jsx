@@ -848,7 +848,7 @@ export default function App() {
         r.onerror = () => rej(new Error('Read failed'));
         r.readAsDataURL(file);
       });
-      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      const resp = await fetch('/api/import-puzzle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
