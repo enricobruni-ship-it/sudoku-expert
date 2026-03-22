@@ -127,7 +127,7 @@ const css = `
     background: ${C.card};
     border-bottom: 1px solid ${C.border};
     padding: 0 24px;
-    height: 48px;
+    height: 56px;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -174,11 +174,11 @@ const css = `
   .main {
     width: 100%;
     max-width: 960px;
-    padding: 10px 8px 32px;
+    padding: 24px 20px 48px;
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 16px;
   }
 
   /* Desktop: side by side */
@@ -211,7 +211,7 @@ const css = `
     max-width: 480px;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 12px;
   }
 
   @media (min-width: 700px) {
@@ -227,12 +227,12 @@ const css = `
     background: ${C.card};
     border: 1px solid ${C.border};
     border-radius: 14px;
-    padding: 10px 16px;
+    padding: 14px 18px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     box-shadow: ${C.shadow};
-    margin-bottom: 8px;
+    margin-bottom: 12px;
   }
 
   .stat-item {
@@ -244,7 +244,7 @@ const css = `
 
   .stat-val {
     font-family: 'Outfit', sans-serif;
-    font-size: 19px;
+    font-size: 22px;
     font-weight: 800;
     color: ${C.given};
     letter-spacing: -0.5px;
@@ -286,7 +286,7 @@ const css = `
   .board-card {
     background: ${C.card};
     border-radius: 16px;
-    padding: 6px;
+    padding: 12px;
     box-shadow: ${C.shadowLg};
     border: 1px solid ${C.border};
   }
@@ -316,8 +316,8 @@ const css = `
     background: white;
   }
 
-  .cell[data-col="3"], .cell[data-col="6"] { border-left: 2.5px solid ${C.borderThick}; }
-  .cell[data-row="3"], .cell[data-row="6"] { border-top: 2.5px solid ${C.borderThick}; }
+  .cell[data-col="3"], .cell[data-col="6"] { border-left: 2px solid ${C.borderBox}; }
+  .cell[data-row="3"], .cell[data-row="6"] { border-top: 2px solid ${C.borderBox}; }
 
   .cell.sel   { background: ${C.selCell} !important; }
   .cell.hl    { background: ${C.hlCell}; }
@@ -365,19 +365,19 @@ const css = `
     letter-spacing: 1.5px;
     text-transform: uppercase;
     color: ${C.muted};
-    margin-bottom: 4px;
+    margin-bottom: 6px;
   }
 
   /* ── TOOL BUTTONS ── */
   .tools-card {
     background: ${C.card};
     border: 1px solid ${C.border};
-    border-radius: 12px;
-    padding: 8px 10px;
+    border-radius: 14px;
+    padding: 14px;
     box-shadow: ${C.shadow};
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
   }
 
   .tools-row {
@@ -390,10 +390,10 @@ const css = `
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 3px;
-    padding: 6px 4px;
+    gap: 5px;
+    padding: 10px 6px;
     border: 1.5px solid ${C.border};
-    border-radius: 10px;
+    border-radius: 12px;
     background: white;
     cursor: pointer;
     font-family: 'Inter', sans-serif;
@@ -403,26 +403,25 @@ const css = `
     color: ${C.muted};
     transition: all 0.15s;
     touch-action: manipulation;
-    min-height: 48px;
   }
 
   .tool-btn:hover  { border-color: ${C.accent}; color: ${C.accent}; background: ${C.accentSoft}; }
   .tool-btn.active { border-color: ${C.accent}; color: ${C.accent}; background: ${C.accentSoft}; }
-  .tool-btn svg    { width: 18px; height: 18px; }
+  .tool-btn svg    { width: 20px; height: 20px; }
 
   /* ── NUMPAD ── */
   .numpad-card {
     background: ${C.card};
     border: 1px solid ${C.border};
-    border-radius: 12px;
-    padding: 8px 6px;
+    border-radius: 14px;
+    padding: 14px;
     box-shadow: ${C.shadow};
   }
 
   .numpad {
     display: grid;
     grid-template-columns: repeat(9, 1fr);
-    gap: 4px;
+    gap: 6px;
   }
 
   @media (min-width: 700px) {
@@ -435,7 +434,7 @@ const css = `
     border-radius: 10px;
     background: white;
     font-family: 'Outfit', sans-serif;
-    font-size: clamp(17px, 4.2vw, 22px);
+    font-size: clamp(14px, 3vw, 20px);
     font-weight: 800;
     color: ${C.given};
     cursor: pointer;
@@ -445,7 +444,6 @@ const css = `
     justify-content: center;
     touch-action: manipulation;
     position: relative;
-    min-height: 40px;
   }
 
   .nkey:hover  { border-color: ${C.accent}; color: ${C.accent}; background: ${C.accentSoft}; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(37,99,235,0.15); }
@@ -453,19 +451,13 @@ const css = `
   .nkey.done   { opacity: 0.18; pointer-events: none; }
 
   .nkey-count {
-    display: none;
-  }
-  @media (min-width: 700px) {
-    .nkey-count {
-      display: block;
-      position: absolute;
-      bottom: 2px; right: 3px;
-      font-size: 7px;
-      font-family: 'Inter', sans-serif;
-      font-weight: 600;
-      color: ${C.muted};
-      line-height: 1;
-    }
+    position: absolute;
+    bottom: 2px; right: 3px;
+    font-size: 7px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    color: ${C.muted};
+    line-height: 1;
   }
 
   @media (min-width: 700px) {
@@ -476,17 +468,17 @@ const css = `
   .action-card {
     background: ${C.card};
     border: 1px solid ${C.border};
-    border-radius: 12px;
-    padding: 8px 10px;
+    border-radius: 14px;
+    padding: 14px;
     box-shadow: ${C.shadow};
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 8px;
   }
 
   .action-btn {
     width: 100%;
-    padding: 10px 16px;
+    padding: 12px 16px;
     border-radius: 10px;
     font-family: 'Outfit', sans-serif;
     font-size: 13px;
