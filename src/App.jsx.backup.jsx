@@ -790,15 +790,16 @@ export default function App() {
     setHistory(h => [...h.slice(-49), g.map(row => row.map(c => ({ ...c, notes: new Set(c.notes) })))]);
   }, []);
 
-  const enterNum = useCallback(n => {
+  const enterNum = useCallback((n, forceNotes) => {
     if (!selected || !grid) return;
     const { row, col } = selected;
     if (grid[row][col].given) return;
     const g = grid.map(r => r.map(c => ({ ...c, notes: new Set(c.notes) })));
+    const isNotes = forceNotes !== undefined ? forceNotes : notesMode;
 
-    if (notesMode) {
-      if (g[row][col].value) return;
+    if (isNotes) {
       saveHistory(grid);
+      g[row][col].value = 0; // clear any existing number first
       if (g[row][col].notes.has(n)) g[row][col].notes.delete(n); else g[row][col].notes.add(n);
       setGrid(g); return;
     }
@@ -1038,7 +1039,7 @@ export default function App() {
               <div className="section-label">Numbers</div>
               <div className="numpad">
                 {[1,2,3,4,5,6,7,8,9].map(n => (
-                  <button key={n} className={`nkey${counts[n] >= 9 ? ' done' : ''}`} onClick={() => { setNotesMode(false); enterNum(n); }}>
+                  <button key={n} className={`nkey${counts[n] >= 9 ? ' done' : ''}`} onClick={() => enterNum(n, false)}>
                     {n}
                     {counts[n] > 0 && counts[n] < 9 && <span className="nkey-count">{9-counts[n]}</span>}
                   </button>
@@ -1047,7 +1048,7 @@ export default function App() {
               {/* Notes numpad */}
               <div className="numpad" style={{marginTop:6}}>
                 {[1,2,3,4,5,6,7,8,9].map(n => (
-                  <button key={n} className="nkey nkey-note" onClick={() => { setNotesMode(true); enterNum(n); }}>
+                  <button key={n} className="nkey nkey-note" onClick={() => enterNum(n, true)}>
                     {n}
                   </button>
                 ))}
