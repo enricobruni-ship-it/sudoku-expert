@@ -452,6 +452,26 @@ const css = `
   .nkey:active { transform: translateY(0); }
   .nkey.done   { opacity: 0.18; pointer-events: none; }
 
+  .nkey-note {
+    aspect-ratio: 1;
+    border: 1.5px solid #bfdbfe;
+    border-radius: 10px;
+    background: #f0f7ff;
+    font-family: 'Inter', sans-serif;
+    font-size: clamp(11px, 2.8vw, 15px);
+    font-weight: 500;
+    color: #60a5fa;
+    cursor: pointer;
+    transition: all 0.12s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    touch-action: manipulation;
+    min-height: 28px;
+  }
+
+  .nkey-note:hover { border-color: #93c5fd; background: #dbeafe; color: #2563eb; }
+
   .nkey-count {
     display: none;
   }
@@ -1013,6 +1033,28 @@ export default function App() {
               </div>
             </div>
 
+            {/* Numpad */}
+            <div className="numpad-card">
+              <div className="section-label">Numbers</div>
+              <div className="numpad">
+                {[1,2,3,4,5,6,7,8,9].map(n => (
+                  <button key={n} className={`nkey${counts[n] >= 9 ? ' done' : ''}`} onClick={() => { setNotesMode(false); enterNum(n); }}>
+                    {n}
+                    {counts[n] > 0 && counts[n] < 9 && <span className="nkey-count">{9-counts[n]}</span>}
+                  </button>
+                ))}
+              </div>
+              {/* Notes numpad */}
+              <div className="numpad" style={{marginTop:6}}>
+                {[1,2,3,4,5,6,7,8,9].map(n => (
+                  <button key={n} className="nkey nkey-note" onClick={() => { setNotesMode(true); enterNum(n); }}>
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <div style={{fontSize:9,fontWeight:600,letterSpacing:'1px',textTransform:'uppercase',color:'#94a3b8',textAlign:'center',marginTop:4}}>Notes row</div>
+            </div>
+
             {/* Tools */}
             <div className="tools-card">
               <div className="section-label">Tools</div>
@@ -1026,26 +1068,16 @@ export default function App() {
                   Erase
                 </button>
                 <button className={`tool-btn${notesMode ? ' active' : ''}`} onClick={() => setNotesMode(m => !m)}>
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <div style={{position:'relative',width:18,height:18}}>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{width:18,height:18}}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    {notesMode && <svg viewBox="0 0 12 12" style={{position:'absolute',bottom:-3,right:-3,width:11,height:11,background:'#2563eb',borderRadius:'50%',padding:1.5}} fill="none" stroke="white" strokeWidth="2.5"><path d="M1.5 6l3 3 5-5"/></svg>}
+                  </div>
                   Notes
                 </button>
                 <button className="tool-btn" onClick={handleHint}>
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
                   Hint
                 </button>
-              </div>
-            </div>
-
-            {/* Numpad */}
-            <div className="numpad-card">
-              <div className="section-label">Numbers</div>
-              <div className="numpad">
-                {[1,2,3,4,5,6,7,8,9].map(n => (
-                  <button key={n} className={`nkey${counts[n] >= 9 ? ' done' : ''}`} onClick={() => enterNum(n)}>
-                    {n}
-                    {counts[n] > 0 && counts[n] < 9 && <span className="nkey-count">{9-counts[n]}</span>}
-                  </button>
-                ))}
               </div>
             </div>
 
