@@ -94,57 +94,101 @@ function generateExpertPuzzle() {
 }
 
 // ─── PATCHES ENGINE ─────────────────────────────────────────────────────────
+const PSIZE = 6; // 6x6 like LinkedIn
+
 function getShapeType(rows, cols) {
   if (rows === cols) return 'square';
   if (cols > rows) return 'wide';
   return 'tall';
 }
-function shapeIcon(type) {
-  if (type === 'square') return '▪';
-  if (type === 'wide')   return '▬';
-  if (type === 'tall')   return '▮';
-  return '▪';
-}
-function generatePatches() {
-  const SIZE = 5;
-  const COLORS = ['#cce4f7','#d4edda','#fce8b2','#f5d0d0','#e8d5f5','#d5f5e3','#fdd5c0','#d0eaf5','#ffd6e0','#e0f0ff'];
-  let bestPatches = null;
 
-  for (let attempt = 0; attempt < 300; attempt++) {
-    const grid = Array.from({ length: SIZE }, () => Array(SIZE).fill(-1));
+// SVG mini silhouette icon matching LinkedIn visual style
+function ShapeIcon({ type, size = 16 }) {
+  const s = size;
+  if (type === 'square') {
+    const m = Math.round(s * 0.15), box = s - m * 2;
+    return (
+      <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={{display:'block'}}>
+        <rect x={m} y={m} width={box} height={box} rx="1" fill="currentColor"/>
+      </svg>
+    );
+  }
+  if (type === 'wide') {
+    const px = Math.round(s * 0.06), h = Math.round(s * 0.35), y = (s - h) / 2;
+    return (
+      <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={{display:'block'}}>
+        <rect x={px} y={Math.round(y)} width={s - px * 2} height={h} rx="1" fill="currentColor"/>
+      </svg>
+    );
+  }
+  // tall
+  const py = Math.round(s * 0.06), w = Math.round(s * 0.35), x = (s - w) / 2;
+  return (
+    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={{display:'block'}}>
+      <rect x={Math.round(x)} y={py} width={w} height={s - py * 2} rx="1" fill="currentColor"/>
+    </svg>
+  );
+}
+
+function generatePatches() {
+  const COLORS = [
+    '#bbdefb','#c8e6c9','#fff9c4','#ffcdd2',
+    '#e1bee7','#b2dfdb','#ffe0b2','#b3e5fc',
+    '#f8bbd0','#dcedc8','#d1c4e9','#e8eaf6',
+  ];
+
+  function getRectOptions(maxH, maxW) {
+    const opts = [];
+    for (let h = 1; h <= maxH; h++)
+      for (let w = 1; w <= maxW; w++)
+        if (h * w >= 2) opts.push([h, w]); // no 1x1
+    return opts;
+  }
+
+  for (let attempt = 0; attempt < 600; attempt++) {
+    const grid = Array.from({ length: PSIZE }, () => Array(PSIZE).fill(-1));
     const patches = [];
     let id = 0;
     let failed = false;
 
-    for (let r = 0; r < SIZE && !failed; r++) {
-      for (let c = 0; c < SIZE && !failed; c++) {
+    for (let r = 0; r < PSIZE && !failed; r++) {
+      for (let c = 0; c < PSIZE && !failed; c++) {
         if (grid[r][c] !== -1) continue;
+        const maxH = Math.min(4, PSIZE - r);
+        const maxW = Math.min(4, PSIZE - c);
+        const opts = shuffle(getRectOptions(maxH, maxW));
         let placed = false;
-        const maxH = Math.min(3, SIZE - r);
-        const maxW = Math.min(3, SIZE - c);
-        const options = [];
-        for (let h = 1; h <= maxH; h++)
-          for (let w = 1; w <= maxW; w++)
-            options.push([h, w]);
-        shuffle(options).forEach(([h, w]) => {
-          if (placed) return;
-          for (let rr = r; rr < r + h; rr++)
-            for (let cc = c; cc < c + w; cc++)
-              if (grid[rr][cc] !== -1) return;
+        for (const [h, w] of opts) {
+          let ok = true;
+          for (let rr = r; rr < r + h && ok; rr++)
+            for (let cc = c; cc < c + w && ok; cc++)
+              if (grid[rr][cc] !== -1) ok = false;
+          if (!ok) continue;
           for (let rr = r; rr < r + h; rr++)
             for (let cc = c; cc < c + w; cc++)
               grid[rr][cc] = id;
-          patches.push({ id, r1:r, c1:c, r2:r+h-1, c2:c+w-1, size:h*w,
-            type: getShapeType(h, w), color: COLORS[id % COLORS.length], clueR:r, clueC:c });
+          // Place clue in a random cell within the rectangle
+          const cells = [];
+          for (let rr = r; rr < r + h; rr++)
+            for (let cc = c; cc < c + w; cc++)
+              cells.push([rr, cc]);
+          const [cr, cc2] = cells[Math.floor(Math.random() * cells.length)];
+          patches.push({
+            id, r1:r, c1:c, r2:r+h-1, c2:c+w-1,
+            size: h*w, type: getShapeType(h,w),
+            color: COLORS[id % COLORS.length],
+            clueR: cr, clueC: cc2,
+          });
           id++;
           placed = true;
-        });
+          break;
+        }
         if (!placed) { failed = true; }
       }
     }
-    if (!failed) { bestPatches = patches; break; }
+    if (!failed && patches.length >= 6) return { patches, size: PSIZE };
   }
-  return { patches: bestPatches || [], size: SIZE };
+  return { patches: [], size: PSIZE };
 }
 
 // ─── CSS ────────────────────────────────────────────────────────────────────
@@ -344,7 +388,7 @@ const css = `
   .pcell.preview-valid   { box-shadow: inset 0 0 0 2.5px #f97316; z-index: 2; }
   .pcell.preview-invalid { box-shadow: inset 0 0 0 2.5px ${C.error}; z-index: 2; filter: brightness(0.9); }
   .pcell-inner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 1px; pointer-events: none; }
-  .clue-num { font-family: 'Outfit', sans-serif; font-size: clamp(12px,3.5vw,22px); font-weight: 900; color: rgba(0,0,0,0.72); line-height: 1; }
+  .clue-num { font-family: 'Outfit', sans-serif; font-size: clamp(11px,3vw,18px); font-weight: 900; color: rgba(0,0,0,0.78); line-height: 1; }
   .clue-shape { font-size: clamp(9px,2.2vw,14px); color: rgba(0,0,0,0.45); line-height: 1; }
   .patches-info { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 12px; padding: 12px 14px; box-shadow: ${C.shadow}; font-size: 12px; color: ${C.muted}; line-height: 1.7; }
   .patches-info strong { color: ${C.given}; }
@@ -722,7 +766,7 @@ function PatchesGame({ state, setState }) {
   function getCellFromEvent(e) {
     if (!boardRef.current) return null;
     const rect = boardRef.current.getBoundingClientRect();
-    const S = size || 5;
+    const S = PSIZE;
     const cx = e.touches ? e.touches[0].clientX : e.clientX;
     const cy = e.touches ? e.touches[0].clientY : e.clientY;
     const c = Math.floor((cx-rect.left)/(rect.width/S));
@@ -767,7 +811,7 @@ function PatchesGame({ state, setState }) {
     setState(s => ({ ...s, placed: s.placed.filter(p=>p.id!==id) }));
   }
 
-  const S = size || 5;
+  const S = PSIZE;
 
   return (
     <>
@@ -800,7 +844,14 @@ function PatchesGame({ state, setState }) {
                     onClick={() => { if(ownerId!==undefined) removePatch(r,c); }}
                   >
                     <div className="pcell-inner">
-                      {clue && <><span className="clue-num">{clue.size}</span><span className="clue-shape">{shapeIcon(clue.type)}</span></>}
+                      {clue && (
+                        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,pointerEvents:'none'}}>
+                          <span className="clue-num">{clue.size}</span>
+                          <span style={{color:'rgba(0,0,0,0.5)',display:'flex'}}>
+                            <ShapeIcon type={clue.type} size={14}/>
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -818,14 +869,14 @@ function PatchesGame({ state, setState }) {
           <div className="patches-info">
             <strong>How to play</strong><br/>
             Drag to draw a rectangle. Each patch must:<br/>
-            • Cover the exact number shown<br/>
-            • Match the shape (▪ square · ▬ wide · ▮ tall)<br/>
+            • Cover the exact number of cells shown<br/>
+            • Match the shape type in the clue icon<br/>
             • Contain exactly one clue cell<br/><br/>
-            <em>Click a placed patch to remove it.</em>
+            <em>Tap a placed patch to remove it.</em>
             <div className="patches-legend">
-              <div className="legend-item"><span>▪</span> Square</div>
-              <div className="legend-item"><span>▬</span> Wide</div>
-              <div className="legend-item"><span>▮</span> Tall</div>
+              <div className="legend-item"><ShapeIcon type="square" size={14}/><span>Square</span></div>
+              <div className="legend-item"><ShapeIcon type="wide" size={14}/><span>Wide</span></div>
+              <div className="legend-item"><ShapeIcon type="tall" size={14}/><span>Tall</span></div>
             </div>
           </div>
 

@@ -102,94 +102,223 @@ function getShapeType(rows, cols) {
   return 'tall';
 }
 
-// SVG mini silhouette icon matching LinkedIn visual style
-function ShapeIcon({ type, size = 16 }) {
-  const s = size;
-  if (type === 'square') {
-    const m = Math.round(s * 0.15), box = s - m * 2;
-    return (
-      <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={{display:'block'}}>
-        <rect x={m} y={m} width={box} height={box} rx="1" fill="currentColor"/>
-      </svg>
-    );
-  }
-  if (type === 'wide') {
-    const px = Math.round(s * 0.06), h = Math.round(s * 0.35), y = (s - h) / 2;
-    return (
-      <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={{display:'block'}}>
-        <rect x={px} y={Math.round(y)} width={s - px * 2} height={h} rx="1" fill="currentColor"/>
-      </svg>
-    );
-  }
-  // tall
-  const py = Math.round(s * 0.06), w = Math.round(s * 0.35), x = (s - w) / 2;
+// ClueBadge: the badge SHAPE visually shows the required orientation
+// - wide:   badge is wider than tall (horizontal rectangle)
+// - tall:   badge is taller than wide (vertical rectangle)  
+// - square: badge is a square
+// - any:    square badge with a small "?" indicator — shape is unconstrained
+// Number centered inside. Clear at a glance.
+function ClueBadge({ num, shapeType, color }) {
+  const cx = 50, cy = 50;
+  const rx = 8; // corner radius
+
+  // Badge dimensions reflect the shape
+  let bw, bh;
+  if (shapeType === 'wide')   { bw = 82; bh = 40; }
+  else if (shapeType === 'tall')   { bw = 40; bh = 82; }
+  else if (shapeType === 'square') { bw = 56; bh = 56; }
+  else                              { bw = 56; bh = 56; } // any = square-ish
+
+  const fontSize = bw <= 44 ? 22 : bh <= 44 ? 22 : 30;
+
   return (
-    <svg width={s} height={s} viewBox={`0 0 ${s} ${s}`} style={{display:'block'}}>
-      <rect x={Math.round(x)} y={py} width={w} height={s - py * 2} rx="1" fill="currentColor"/>
+    <svg viewBox="0 0 100 100" style={{
+      position:'absolute', inset:0, width:'100%', height:'100%',
+      display:'block', pointerEvents:'none',
+      filter:'drop-shadow(0 2px 3px rgba(0,0,0,0.25))',
+    }}>
+      {/* Badge shape = shape silhouette */}
+      <rect
+        x={cx - bw/2} y={cy - bh/2}
+        width={bw} height={bh}
+        rx={rx} fill={color}
+      />
+      {/* Number */}
+      {num != null && (
+        <text x={cx} y={cy+1} textAnchor="middle" dominantBaseline="central"
+          fill="white" fontSize={fontSize} fontFamily="Outfit,sans-serif" fontWeight="900">
+          {num}
+        </text>
+      )}
+      {/* "any" indicator — small circle overlay bottom-right */}
+      {shapeType === 'any' && (
+        <circle cx={cx+bw/2-6} cy={cy+bh/2-6} r={7} fill="white" opacity={0.4}/>
+      )}
     </svg>
   );
 }
 
+// LinkedIn clue system:
+// Each patch has a colored badge with its number (if any) and a shape type
+// Shape type: 'square' | 'wide' | 'tall' | 'any' (any of the above)
+// Number: shown on badge, or null if patch has no number clue
+// 'any' shape type means the patch can be any rectangle
 function generatePatches() {
   const COLORS = [
-    '#bbdefb','#c8e6c9','#fff9c4','#ffcdd2',
-    '#e1bee7','#b2dfdb','#ffe0b2','#b3e5fc',
-    '#f8bbd0','#dcedc8','#d1c4e9','#e8eaf6',
+    '#e53935','#1e88e5','#43a047','#fb8c00',
+    '#8e24aa','#00acc1','#c0ca33','#f06292',
+    '#00897b','#7b61ff','#d4a017','#5c6bc0',
   ];
 
-  function getRectOptions(maxH, maxW) {
-    const opts = [];
-    for (let h = 1; h <= maxH; h++)
-      for (let w = 1; w <= maxW; w++)
-        if (h * w >= 2) opts.push([h, w]); // no 1x1
-    return opts;
+  // ── Backtracking tiler ────────────────────────────────────────────────────
+  function tile(grid, rects, id) {
+    let fr=-1, fc=-1;
+    outer: for(let r=0;r<PSIZE;r++) for(let c=0;c<PSIZE;c++) if(grid[r][c]===-1){fr=r;fc=c;break outer;}
+    if(fr===-1) return true;
+    const opts=[];
+    for(let h=1;h<=PSIZE-fr;h++) for(let w=1;w<=PSIZE-fc;w++){
+      const area=h*w; if(area<2||area>10) continue;
+      let ok=true;
+      for(let rr=fr;rr<fr+h&&ok;rr++) for(let cc=fc;cc<fc+w&&ok;cc++) if(grid[rr][cc]!==-1) ok=false;
+      if(ok){ const wt=area>=6?5:area>=4?3:1; for(let i=0;i<wt;i++) opts.push([h,w]); }
+    }
+    for(let i=opts.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[opts[i],opts[j]]=[opts[j],opts[i]];}
+    for(const [h,w] of opts){
+      for(let rr=fr;rr<fr+h;rr++) for(let cc=fc;cc<fc+w;cc++) grid[rr][cc]=id;
+      rects.push({id,r1:fr,c1:fc,r2:fr+h-1,c2:fc+w-1,size:h*w,type:getShapeType(h,w)});
+      if(tile(grid,rects,id+1)) return true;
+      rects.pop();
+      for(let rr=fr;rr<fr+h;rr++) for(let cc=fc;cc<fc+w;cc++) grid[rr][cc]=-1;
+    }
+    return false;
   }
 
-  for (let attempt = 0; attempt < 600; attempt++) {
-    const grid = Array.from({ length: PSIZE }, () => Array(PSIZE).fill(-1));
-    const patches = [];
-    let id = 0;
-    let failed = false;
+  // ── Candidate rectangles for a clue cell given constraints ────────────────
+  function getCandidates(clueR, clueC, clueNum, clueShape) {
+    const cands = [];
+    for(let r1=Math.max(0,clueR-9);r1<=clueR;r1++)
+      for(let c1=Math.max(0,clueC-9);c1<=clueC;c1++)
+        for(let r2=clueR;r2<PSIZE;r2++)
+          for(let c2=clueC;c2<PSIZE;c2++){
+            const h=r2-r1+1, w=c2-c1+1, area=h*w;
+            if(area<2||area>10) continue;
+            if(clueNum!==null && area!==clueNum) continue;
+            if(clueShape!=='any' && getShapeType(h,w)!==clueShape) continue;
+            cands.push([r1,c1,r2,c2]);
+          }
+    return cands;
+  }
 
-    for (let r = 0; r < PSIZE && !failed; r++) {
-      for (let c = 0; c < PSIZE && !failed; c++) {
-        if (grid[r][c] !== -1) continue;
-        const maxH = Math.min(4, PSIZE - r);
-        const maxW = Math.min(4, PSIZE - c);
-        const opts = shuffle(getRectOptions(maxH, maxW));
-        let placed = false;
-        for (const [h, w] of opts) {
-          let ok = true;
-          for (let rr = r; rr < r + h && ok; rr++)
-            for (let cc = c; cc < c + w && ok; cc++)
-              if (grid[rr][cc] !== -1) ok = false;
-          if (!ok) continue;
-          for (let rr = r; rr < r + h; rr++)
-            for (let cc = c; cc < c + w; cc++)
-              grid[rr][cc] = id;
-          // Place clue in a random cell within the rectangle
-          const cells = [];
-          for (let rr = r; rr < r + h; rr++)
-            for (let cc = c; cc < c + w; cc++)
-              cells.push([rr, cc]);
-          const [cr, cc2] = cells[Math.floor(Math.random() * cells.length)];
-          patches.push({
-            id, r1:r, c1:c, r2:r+h-1, c2:c+w-1,
-            size: h*w, type: getShapeType(h,w),
-            color: COLORS[id % COLORS.length],
-            clueR: cr, clueC: cc2,
-          });
-          id++;
-          placed = true;
-          break;
+  // ── Solver: counts complete valid tilings up to limit ─────────────────────
+  function countSolutions(pList, limit=2) {
+    const n = pList.length;
+    const placed = Array(n).fill(null);
+    let count = 0;
+    function solve(idx) {
+      if(count >= limit) return;
+      if(idx === n) {
+        // Verify full coverage
+        const g = Array.from({length:PSIZE},()=>Array(PSIZE).fill(0));
+        for(const p of placed) for(let r=p[0];r<=p[2];r++) for(let c=p[1];c<=p[3];c++) g[r][c]++;
+        if(g.every(row=>row.every(v=>v===1))) count++;
+        return;
+      }
+      for(const cand of pList[idx].cands) {
+        let ok = true;
+        for(let i=0;i<idx&&ok;i++){
+          const p=placed[i];
+          if(!(cand[2]<p[0]||cand[0]>p[2]||cand[3]<p[1]||cand[1]>p[3])) ok=false;
         }
-        if (!placed) { failed = true; }
+        if(!ok) continue;
+        placed[idx]=cand;
+        solve(idx+1);
+        placed[idx]=null;
+        if(count>=limit) return;
       }
     }
-    if (!failed && patches.length >= 6) return { patches, size: PSIZE };
+    solve(0);
+    return count;
   }
-  return { patches: [], size: PSIZE };
+
+  // ── Minimise: remove shape info where puzzle stays unique ─────────────────
+  // Try to relax UP TO maxAny patches to 'any', keeping puzzle uniquely solvable.
+  // Only non-square patches can be relaxed — wide/tall shape info is meaningful.
+  // Square patches are already visually self-evident (h===w).
+  function minimise(patches, maxAny=2) {
+    let anyCount = 0;
+    const order = shuffle([...Array(patches.length).keys()]);
+    for(const i of order){
+      if(anyCount >= maxAny) break;
+      const p = patches[i];
+      // Only relax wide/tall — square shape is obvious from badge proportions
+      if(p.clueShape === 'any' || p.clueShape === 'square') continue;
+      const newCands = getCandidates(p.clueR, p.clueC, p.clueNum, 'any');
+      const saved = { shape: p.clueShape, cands: p.cands };
+      p.clueShape = 'any';
+      p.cands = newCands;
+      if(countSolutions(patches) === 1) {
+        anyCount++; // keep — still unique, adds a deduction challenge
+      } else {
+        p.clueShape = saved.shape; // revert — would make puzzle ambiguous
+        p.cands = saved.cands;
+      }
+    }
+  }
+
+  // ── Main ──────────────────────────────────────────────────────────────────
+  let best = null, bestScore = -1;
+
+  for(let attempt=0; attempt<50; attempt++){
+    const grid = Array.from({length:PSIZE},()=>Array(PSIZE).fill(-1));
+    const rects = [];
+    if(!tile(grid,rects,0)) continue;
+    if(rects.length < 5 || rects.length > 9) continue;
+
+    const patches = rects.map((rect,i) => {
+      const h=rect.r2-rect.r1+1, w=rect.c2-rect.c1+1;
+      const cells=[];
+      for(let r=rect.r1;r<=rect.r2;r++) for(let c=rect.c1;c<=rect.c2;c++){
+        const edge=(r===rect.r1||r===rect.r2||c===rect.c1||c===rect.c2);
+        cells.push([r,c,edge?1:3]);
+      }
+      const pool=cells.flatMap(([r,c,wt])=>Array(wt).fill([r,c]));
+      const [cr,cc]=pool[Math.floor(Math.random()*pool.length)];
+      const clueShape = getShapeType(h,w);
+      return {
+        ...rect, id:i,
+        color: COLORS[i%COLORS.length],
+        clueR: cr, clueC: cc,
+        clueNum: rect.size,
+        clueShape,
+        cands: getCandidates(cr, cc, rect.size, clueShape),
+      };
+    });
+
+    if(countSolutions(patches) !== 1) continue;
+
+    // Relax at most 2 patches to 'any' — keeps puzzle hard but not random
+    minimise(patches, 2);
+
+    // Prefer fewer patches (harder layout)
+    const score = -patches.length;
+    if(score > bestScore){ best = patches; bestScore = score; }
+  }
+
+  if(!best) {
+    // Fallback: fully constrained
+    const grid=Array.from({length:PSIZE},()=>Array(PSIZE).fill(-1));
+    const rects=[];
+    tile(grid,rects,0);
+    best = rects.map((rect,i)=>({
+      ...rect, id:i, color:COLORS[i%COLORS.length],
+      clueR:rect.r1, clueC:rect.c1,
+      clueNum:rect.size, clueShape:rect.type,
+    }));
+  }
+
+  // Strip internal solver data before returning
+  return {
+    patches: best.map(p=>({
+      id:p.id, r1:p.r1, c1:p.c1, r2:p.r2, c2:p.c2,
+      size:p.size, type:p.type,
+      color:p.color,
+      clueR:p.clueR, clueC:p.clueC,
+      clueNum:p.clueNum, clueShape:p.clueShape,
+    })),
+    size: PSIZE,
+  };
 }
+
 
 // ─── CSS ────────────────────────────────────────────────────────────────────
 const css = `
@@ -384,16 +513,15 @@ const css = `
   /* PATCHES */
   .patches-board-card { background: ${C.card}; border-radius: 16px; padding: 8px; box-shadow: ${C.shadowLg}; border: 1px solid ${C.border}; user-select: none; }
   .patches-grid { display: grid; border: 2px solid ${C.borderThick}; border-radius: 8px; overflow: hidden; width: 100%; aspect-ratio: 1; }
-  .pcell { position: relative; border: 0.5px solid rgba(0,0,0,0.12); cursor: crosshair; display: flex; align-items: center; justify-content: center; min-width: 0; min-height: 0; transition: filter 0.06s; }
-  .pcell.preview-valid   { box-shadow: inset 0 0 0 2.5px #f97316; z-index: 2; }
-  .pcell.preview-invalid { box-shadow: inset 0 0 0 2.5px ${C.error}; z-index: 2; filter: brightness(0.9); }
-  .pcell-inner { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 1px; pointer-events: none; }
-  .clue-num { font-family: 'Outfit', sans-serif; font-size: clamp(11px,3vw,18px); font-weight: 900; color: rgba(0,0,0,0.78); line-height: 1; }
-  .clue-shape { font-size: clamp(9px,2.2vw,14px); color: rgba(0,0,0,0.45); line-height: 1; }
-  .patches-info { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 12px; padding: 12px 14px; box-shadow: ${C.shadow}; font-size: 12px; color: ${C.muted}; line-height: 1.7; }
+  .pcell { position: relative; border: 1px solid #d8d4cf; cursor: crosshair; min-width: 0; min-height: 0; background: white; transition: background 0.08s; overflow: visible; }
+  .pcell.preview-valid   { box-shadow: inset 0 0 0 2.5px #22c55e; z-index: 2; background: rgba(34,197,94,0.1) !important; }
+  .pcell.preview-invalid { box-shadow: inset 0 0 0 2.5px #ef4444; z-index: 2; background: rgba(239,68,68,0.06) !important; }
+  .pcell-inner { position: absolute; inset: 0; pointer-events: none; }
+  /* ClueBadge rendered as SVG, no CSS class needed */
+  .patches-info { background: ${C.card}; border: 1px solid ${C.border}; border-radius: 12px; padding: 12px 14px; box-shadow: ${C.shadow}; font-size: 12px; color: ${C.muted}; line-height: 1.6; }
   .patches-info strong { color: ${C.given}; }
-  .patches-legend { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
-  .legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; color: ${C.muted}; }
+  .patches-legend { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .legend-item { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 500; color: ${C.given}; }
 `;
 
 // ─── MODALS ─────────────────────────────────────────────────────────────────
@@ -705,152 +833,266 @@ function SudokuGame({ state, setState }) {
 
 // ─── PATCHES GAME ─────────────────────────────────────────────────────────────
 function PatchesGame({ state, setState }) {
-  const { patches, size, placed, seconds, win, generating, confirmNew } = state;
+  const { patches, placed, seconds, win, confirmNew } = state;
   const timerRef = useRef(null);
-  const boardRef = useRef(null);
+  const boardRef    = useRef(null);
+  const handlersRef = useRef({}); // holds always-fresh touch handler fns
   const [dragStart, setDragStart] = useState(null);
-  const [dragEnd, setDragEnd] = useState(null);
-  const [dragging, setDragging] = useState(false);
+  const [dragEnd, setDragEnd]     = useState(null);
+  const isDragging  = useRef(false);
+  const dragStartR  = useRef(null);
+  const dragEndRef  = useRef(null); // tracks last valid cell for touchend fallback
   const set = useCallback(patch => setState(s => ({ ...s, ...patch })), [setState]);
 
+  // ── Timer ──────────────────────────────────────────────────────────────────
   const startTimer = useCallback(() => {
     clearInterval(timerRef.current);
-    timerRef.current = setInterval(() => setState(s => ({ ...s, seconds: s.seconds + 1 })), 1000);
+    timerRef.current = setInterval(() => setState(s => ({ ...s, seconds: s.seconds+1 })), 1000);
   }, [setState]);
 
   const newGame = useCallback(() => {
-    const result = generatePatches();
-    set({ patches: result.patches, size: result.size, placed: [], seconds: 0, win: false, generating: false, confirmNew: false });
+    const r = generatePatches();
+    set({ patches:r.patches, size:r.size, placed:[], seconds:0, win:false, generating:false, confirmNew:false });
     startTimer();
   }, [set, startTimer]);
 
-  useEffect(() => {
-    if (!patches) newGame();
-    return () => clearInterval(timerRef.current);
-  }, []);
-
+  useEffect(() => { if (!patches) newGame(); return () => clearInterval(timerRef.current); }, []);
   useEffect(() => { if (win) clearInterval(timerRef.current); }, [win]);
 
   const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
 
-  // Build cell ownership
+  // ── Cell ownership map (only correct placements) ───────────────────────────
   const cellOwner = {};
-  for (const p of (placed||[])) {
-    for (let r = p.r1; r <= p.r2; r++)
-      for (let c = p.c1; c <= p.c2; c++)
-        cellOwner[`${r},${c}`] = p.id;
-  }
+  for (const p of (placed||[]))
+    if (p.correct)
+      for (let r=p.r1;r<=p.r2;r++)
+        for (let c=p.c1;c<=p.c2;c++)
+          cellOwner[`${r},${c}`] = p.id;
 
+  // ── Preview rect from current drag ─────────────────────────────────────────
   const preview = dragStart && dragEnd ? {
-    r1: Math.min(dragStart.r, dragEnd.r), c1: Math.min(dragStart.c, dragEnd.c),
-    r2: Math.max(dragStart.r, dragEnd.r), c2: Math.max(dragStart.c, dragEnd.c),
+    r1:Math.min(dragStart.r,dragEnd.r), c1:Math.min(dragStart.c,dragEnd.c),
+    r2:Math.max(dragStart.r,dragEnd.r), c2:Math.max(dragStart.c,dragEnd.c),
   } : null;
 
-  function validatePrev(prev, ownerMap) {
-    if (!prev || !patches) return false;
+  // Preview validity — green=will place, orange=clue mismatch (won't place), red=no/multi clue
+  function previewState(prev) {
+    if (!prev || !patches) return null;
+    for (let r=prev.r1;r<=prev.r2;r++)
+      for (let c=prev.c1;c<=prev.c2;c++)
+        if (cellOwner[`${r},${c}`] !== undefined) return 'invalid';
+    const inside = patches.filter(p =>
+      p.clueR>=prev.r1&&p.clueR<=prev.r2&&p.clueC>=prev.c1&&p.clueC<=prev.c2
+    );
+    if (inside.length !== 1) return 'invalid';
+    const clue = inside[0];
+    const h=prev.r2-prev.r1+1, w=prev.c2-prev.c1+1, area=h*w;
+    const drawnShape = getShapeType(h,w);
+    if (clue.clueNum !== null && area !== clue.clueNum) return 'mismatch';
+    if (clue.clueShape !== 'any' && drawnShape !== clue.clueShape) return 'mismatch';
+    return 'valid';
+  }
+
+  const prevState = preview ? previewState(preview) : null;
+
+  // ── getCellAt ──────────────────────────────────────────────────────────────
+  function getCellAt(clientX, clientY) {
+    const el = boardRef.current?.querySelector('.patches-grid') || boardRef.current;
+    if (!el) return null;
+    const rect = el.getBoundingClientRect();
+    const rawCol = (clientX-rect.left) / (rect.width/PSIZE);
+    const rawRow = (clientY-rect.top)  / (rect.height/PSIZE);
+    // Return null only if clearly outside (more than 1 cell away)
+    if (rawRow < -1 || rawRow >= PSIZE+1 || rawCol < -1 || rawCol >= PSIZE+1) return null;
+    // Clamp to valid grid bounds
+    const col = Math.max(0, Math.min(PSIZE-1, Math.floor(rawCol)));
+    const row = Math.max(0, Math.min(PSIZE-1, Math.floor(rawRow)));
+    return { r:row, c:col };
+  }
+
+  // ── Commit drag: place rectangle if it contains exactly one clue ───────────
+  // Correct = exact bounds match solution. Wrong = bounds don't match (still placed, shown with red border).
+  // Player removes wrong ones and retries.
+  function commitDrag(endCell) {
+    const start = dragStartR.current;
+    isDragging.current = false;
+    dragStartR.current = null;
+    // Use last known dragEnd as fallback if finger lifted outside grid
+    const finalCell = endCell || dragEndRef.current;
+    setDragStart(null);
+    setDragEnd(null);
+    dragEndRef.current = null;
+    if (!start || !finalCell || !patches) return;
+    const endCell2 = finalCell;
+
+    const prev = {
+      r1:Math.min(start.r,endCell2.r), c1:Math.min(start.c,endCell2.c),
+      r2:Math.max(start.r,endCell2.r), c2:Math.max(start.c,endCell2.c),
+    };
+
+    // Must contain exactly one clue
+    const inside = patches.filter(p =>
+      p.clueR>=prev.r1&&p.clueR<=prev.r2&&p.clueC>=prev.c1&&p.clueC<=prev.c2
+    );
+    if (inside.length !== 1) return;
+    const clue = inside[0];
+
+    // Must not overlap correctly placed OTHER patches
+    for (let r=prev.r1;r<=prev.r2;r++)
+      for (let c=prev.c1;c<=prev.c2;c++)
+        if (cellOwner[`${r},${c}`] !== undefined && cellOwner[`${r},${c}`] !== clue.id) return;
+
+    // Validate against clue constraints — reject if clue says it can't be this shape/size
     const h = prev.r2-prev.r1+1, w = prev.c2-prev.c1+1;
-    const area = h*w, type = getShapeType(h,w);
-    let clueCount = 0, clueMatch = false;
-    for (const p of patches) {
-      if (p.clueR>=prev.r1 && p.clueR<=prev.r2 && p.clueC>=prev.c1 && p.clueC<=prev.c2) {
-        clueCount++;
-        if (p.size===area && (p.type===type||p.type==='any')) clueMatch=true;
+    const area = h*w;
+    const drawnShape = getShapeType(h, w);
+    // Number clue: area must match
+    if (clue.clueNum !== null && area !== clue.clueNum) return;
+    // Shape clue: must match unless 'any'
+    if (clue.clueShape !== 'any' && drawnShape !== clue.clueShape) return;
+
+    const correct = prev.r1===clue.r1 && prev.c1===clue.c1 && prev.r2===clue.r2 && prev.c2===clue.c2;
+
+    setState(s => {
+      const base = s.placed.filter(p => p.id !== clue.id);
+      const newPlaced = [...base, { ...prev, id:clue.id, color:clue.color, correct }];
+      const won = s.patches.every(p => newPlaced.some(pl => pl.id===p.id && pl.correct));
+      if (won) clearInterval(timerRef.current);
+      return { ...s, placed:newPlaced, win:won };
+    });
+  }
+
+
+  // Update handlersRef every render so the non-passive listeners always call fresh code
+  handlersRef.current = {
+    onTouchStart(e) {
+      const t = e.touches[0];
+      const cell = getCellAt(t.clientX, t.clientY);
+      if (!cell) return;
+      if (allOwner[`${cell.r},${cell.c}`] !== undefined) {
+        const id = allOwner[`${cell.r},${cell.c}`];
+        setState(s => ({ ...s, placed: s.placed.filter(p=>p.id!==id) }));
+        return;
       }
-    }
-    for (let r=prev.r1;r<=prev.r2;r++) for (let c=prev.c1;c<=prev.c2;c++) if(ownerMap[`${r},${c}`]!==undefined) return false;
-    return clueCount===1 && clueMatch;
-  }
+      isDragging.current = true;
+      dragStartR.current = cell;
+      setDragStart(cell);
+      setDragEnd(cell);
+    },
+    onTouchMove(e) {
+      if (!isDragging.current) return;
+      const cell = getCellAt(e.touches[0].clientX, e.touches[0].clientY);
+      if (cell) { setDragEnd(cell); dragEndRef.current = cell; }
+    },
+    onTouchEnd(e) {
+      if (!isDragging.current) return;
+      commitDrag(getCellAt(e.changedTouches[0].clientX, e.changedTouches[0].clientY));
+    },
+  };
 
-  const previewValid = preview ? validatePrev(preview, cellOwner) : null;
+  // Attach non-passive listeners once when board mounts — delegate to handlersRef
+  useEffect(() => {
+    const el = boardRef.current;
+    if (!el) return;
+    const onTS = e => { e.preventDefault(); handlersRef.current.onTouchStart(e); };
+    const onTM = e => { e.preventDefault(); handlersRef.current.onTouchMove(e); };
+    const onTE = e => { e.preventDefault(); handlersRef.current.onTouchEnd(e); };
+    el.addEventListener('touchstart', onTS, { passive: false });
+    el.addEventListener('touchmove',  onTM, { passive: false });
+    el.addEventListener('touchend',   onTE, { passive: false });
+    return () => {
+      el.removeEventListener('touchstart', onTS);
+      el.removeEventListener('touchmove',  onTM);
+      el.removeEventListener('touchend',   onTE);
+    };
+  }, []);
 
-  function getCellFromEvent(e) {
-    if (!boardRef.current) return null;
-    const rect = boardRef.current.getBoundingClientRect();
-    const S = PSIZE;
-    const cx = e.touches ? e.touches[0].clientX : e.clientX;
-    const cy = e.touches ? e.touches[0].clientY : e.clientY;
-    const c = Math.floor((cx-rect.left)/(rect.width/S));
-    const r = Math.floor((cy-rect.top)/(rect.height/S));
-    if (r<0||r>=S||c<0||c>=S) return null;
-    return { r, c };
-  }
-
-  function onDown(e) {
-    const cell = getCellFromEvent(e); if (!cell) return;
-    e.preventDefault();
-    setDragging(true); setDragStart(cell); setDragEnd(cell);
-  }
-  function onMove(e) {
-    if (!dragging) return;
-    const cell = getCellFromEvent(e); if (cell) setDragEnd(cell);
-  }
-  function onUp(e) {
-    if (!dragging || !dragStart) return;
-    const cell = getCellFromEvent(e) || dragEnd;
-    setDragging(false); setDragStart(null); setDragEnd(null);
+  // ── Mouse handlers ─────────────────────────────────────────────────────────
+  function onMouseDown(e) {
+    const cell = getCellAt(e.clientX, e.clientY);
     if (!cell) return;
-    const prev = { r1:Math.min(dragStart.r,cell.r), c1:Math.min(dragStart.c,cell.c), r2:Math.max(dragStart.r,cell.r), c2:Math.max(dragStart.c,cell.c) };
-    if (validatePrev(prev, cellOwner)) {
-      const h=prev.r2-prev.r1+1, w=prev.c2-prev.c1+1, area=h*w, type=getShapeType(h,w);
-      const mp = patches.find(p => p.clueR>=prev.r1&&p.clueR<=prev.r2&&p.clueC>=prev.c1&&p.clueC<=prev.c2&&p.size===area&&(p.type===type||p.type==='any'));
-      if (mp) {
-        setState(s => {
-          const newPlaced = [...s.placed, { ...prev, id:mp.id, color:mp.color }];
-          const placedIds = new Set(newPlaced.map(p=>p.id));
-          const won = patches.every(p => placedIds.has(p.id));
-          if (won) clearInterval(timerRef.current);
-          return { ...s, placed:newPlaced, win:won };
-        });
-      }
+    // Click on placed patch = remove it
+    if (allOwner[`${cell.r},${cell.c}`] !== undefined) {
+      const id = allOwner[`${cell.r},${cell.c}`];
+      setState(s => ({ ...s, placed: s.placed.filter(p=>p.id!==id) }));
+      return;
     }
+    isDragging.current = true;
+    dragStartR.current = cell;
+    setDragStart(cell);
+    setDragEnd(cell);
+  }
+  function onMouseMove(e) {
+    if (!isDragging.current) return;
+    const cell = getCellAt(e.clientX, e.clientY);
+    if (cell) { setDragEnd(cell); dragEndRef.current = cell; }
+  }
+  function onMouseUp(e) {
+    if (!isDragging.current) return;
+    commitDrag(getCellAt(e.clientX, e.clientY));
   }
 
   function removePatch(r, c) {
-    const id = cellOwner[`${r},${c}`];
-    if (id===undefined) return;
+    const key = `${r},${c}`;
+    // Find patch at this cell (correct or wrong)
+    const allOwner = {};
+    for (const p of (placed||[]))
+      for (let pr=p.r1;pr<=p.r2;pr++)
+        for (let pc=p.c1;pc<=p.c2;pc++)
+          allOwner[`${pr},${pc}`] = p.id;
+    const id = allOwner[key];
+    if (id === undefined) return;
     setState(s => ({ ...s, placed: s.placed.filter(p=>p.id!==id) }));
   }
 
   const S = PSIZE;
 
+  // All placed (correct + wrong) for display
+  const allOwner = {};
+  for (const p of (placed||[]))
+    for (let r=p.r1;r<=p.r2;r++)
+      for (let c=p.c1;c<=p.c2;c++)
+        allOwner[`${r},${c}`] = p.id;
+
+  const correctCount = (placed||[]).filter(p=>p.correct).length;
+
   return (
     <>
       <div className="main">
+        {/* Board */}
         <div className="panel-board">
           <div className="stats-card">
             <div className="stat-item"><div className="stat-val">{fmt(seconds)}</div><div className="stat-label">Time</div></div>
             <div className="stat-divider"/>
-            <div className="stat-item"><div className="stat-val">{(placed||[]).length}/{(patches||[]).length}</div><div className="stat-label">Patches</div></div>
+            <div className="stat-item">
+              <div className="stat-val">{correctCount}/{(patches||[]).length}</div>
+              <div className="stat-label">Patches</div>
+            </div>
           </div>
 
-          <div className="patches-board-card"
-            ref={boardRef}
-            onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
-            onTouchStart={e=>{e.preventDefault();onDown(e);}} onTouchMove={e=>{e.preventDefault();onMove(e);}} onTouchEnd={e=>{e.preventDefault();onUp(e);}}
-            style={{touchAction:'none'}}
+          <div className="patches-board-card" ref={boardRef}
+            onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}
+            style={{touchAction:'none', userSelect:'none'}}
           >
             <div className="patches-grid" style={{gridTemplateColumns:`repeat(${S},1fr)`,gridTemplateRows:`repeat(${S},1fr)`}}>
               {Array.from({length:S},(_,r) => Array.from({length:S},(_,c) => {
-                const key=`${r},${c}`;
-                const ownerId = cellOwner[key];
-                const placedPatch = ownerId!==undefined ? placed.find(p=>p.id===ownerId) : null;
+                const key = `${r},${c}`;
+                const ownerId = allOwner[key];
+                const placedEntry = ownerId!==undefined ? placed.find(p=>p.id===ownerId) : null;
                 const clue = patches?.find(p=>p.clueR===r&&p.clueC===c);
                 const inPrev = preview && r>=preview.r1&&r<=preview.r2&&c>=preview.c1&&c<=preview.c2;
-                let cls='pcell';
-                if(inPrev) cls += previewValid?' preview-valid':' preview-invalid';
+                let cls = 'pcell';
+                if (inPrev && prevState) cls += prevState==='valid' ? ' preview-valid' : ' preview-invalid';
+                const bgColor = placedEntry ? placedEntry.color : 'white';
+                const wrongBorder = placedEntry && !placedEntry.correct ? '2.5px solid #e53935' : 'none';
                 return (
                   <div key={key} className={cls}
-                    style={{background: placedPatch ? placedPatch.color : 'white'}}
-                    onClick={() => { if(ownerId!==undefined) removePatch(r,c); }}
+                    style={{background:bgColor, outline:wrongBorder, outlineOffset:'-2px'}}
+
                   >
                     <div className="pcell-inner">
                       {clue && (
-                        <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:2,pointerEvents:'none'}}>
-                          <span className="clue-num">{clue.size}</span>
-                          <span style={{color:'rgba(0,0,0,0.5)',display:'flex'}}>
-                            <ShapeIcon type={clue.type} size={14}/>
-                          </span>
-                        </div>
+                        <ClueBadge num={clue.clueNum} shapeType={clue.clueShape} color={clue.color}/>
                       )}
                     </div>
                   </div>
@@ -860,23 +1102,33 @@ function PatchesGame({ state, setState }) {
           </div>
         </div>
 
+        {/* Controls */}
         <div className="panel-controls">
           <div className="desktop-stats">
             <div className="ds-item"><span className="ds-label">⏱ Time</span><span className="ds-val">{fmt(seconds)}</span></div>
-            <div className="ds-item"><span className="ds-label">🧩 Patches</span><span className="ds-val">{(placed||[]).length}/{(patches||[]).length}</span></div>
+            <div className="ds-item"><span className="ds-label">✓ Correct</span><span className="ds-val">{correctCount}/{(patches||[]).length}</span></div>
           </div>
 
           <div className="patches-info">
-            <strong>How to play</strong><br/>
-            Drag to draw a rectangle. Each patch must:<br/>
-            • Cover the exact number of cells shown<br/>
-            • Match the shape type in the clue icon<br/>
-            • Contain exactly one clue cell<br/><br/>
-            <em>Tap a placed patch to remove it.</em>
+            <strong>Complete each shape to fill the grid.</strong>
+            <br/><em>If a shape has a number, it must be that size.</em>
             <div className="patches-legend">
-              <div className="legend-item"><ShapeIcon type="square" size={14}/><span>Square</span></div>
-              <div className="legend-item"><ShapeIcon type="wide" size={14}/><span>Wide</span></div>
-              <div className="legend-item"><ShapeIcon type="tall" size={14}/><span>Tall</span></div>
+              {[
+                {shape:'square', label:'Square',          color:'#9ca3af'},
+                {shape:'tall',   label:'Tall rectangle',  color:'#6b7280'},
+                {shape:'wide',   label:'Wide rectangle',  color:'#9ca3af'},
+                {shape:'any',    label:'Any of the above',color:'#4b5563'},
+              ].map(({shape,label,color}) => (
+                <div key={shape} className="legend-item">
+                  <div style={{width:44,height:30,position:'relative',flexShrink:0}}>
+                    <ClueBadge num={null} shapeType={shape} color={color}/>
+                  </div>
+                  <span>{label}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{marginTop:10,fontSize:11,color:'#aaa'}}>
+              Drag to draw · Tap patch to remove
             </div>
           </div>
 
@@ -893,15 +1145,16 @@ function PatchesGame({ state, setState }) {
           </div>
 
           <div className="action-card">
-            <button className={`action-btn primary${generating?' disabled':''}`} onClick={() => set({ confirmNew:true })}>
-              {generating ? <><div className="spin"/><span>Generating…</span></> : <><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg><span>New Puzzle</span></>}
+            <button className="action-btn primary" onClick={() => set({ confirmNew:true })}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              New Puzzle
             </button>
           </div>
         </div>
       </div>
 
-      {win && <PatchesWinModal seconds={seconds} onNewGame={newGame} />}
-      {confirmNew && <ConfirmModal onConfirm={newGame} onCancel={() => set({ confirmNew:false })} />}
+      {win && <PatchesWinModal seconds={seconds} onNewGame={newGame}/>}
+      {confirmNew && <ConfirmModal onConfirm={newGame} onCancel={() => set({confirmNew:false})}/>}
     </>
   );
 }
