@@ -882,7 +882,7 @@ function PatchesGame({ state, setState }) {
     startTimer();
   }, [set, startTimer]);
 
-  useEffect(() => { if (!patches) newGame(); return () => clearInterval(timerRef.current); }, []);
+  useEffect(() => { if (!patches) newGame(); return () => { clearInterval(timerRef.current); cleanupMouseListeners(); }; }, []);
   useEffect(() => { if (win) clearInterval(timerRef.current); }, [win]);
 
   const fmt = s => `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
@@ -1033,7 +1033,15 @@ function PatchesGame({ state, setState }) {
     };
   }, []);
 
-  // ── Mouse handlers ─────────────────────────────────────────────────────────
+  // ── Mouse handlers (move/up on window so drag works even outside board) ───
+  const mouseMoveRef = useRef(null);
+  const mouseUpRef   = useRef(null);
+
+  function cleanupMouseListeners() {
+    if (mouseMoveRef.current) { window.removeEventListener('mousemove', mouseMoveRef.current); mouseMoveRef.current = null; }
+    if (mouseUpRef.current)   { window.removeEventListener('mouseup',   mouseUpRef.current);   mouseUpRef.current = null; }
+  }
+
   function onMouseDown(e) {
     const cell = getCellAt(e.clientX, e.clientY);
     if (!cell) return;
@@ -1047,15 +1055,21 @@ function PatchesGame({ state, setState }) {
     dragStartR.current = cell;
     setDragStart(cell);
     setDragEnd(cell);
-  }
-  function onMouseMove(e) {
-    if (!isDragging.current) return;
-    const cell = getCellAt(e.clientX, e.clientY);
-    if (cell) { setDragEnd(cell); dragEndRef.current = cell; }
-  }
-  function onMouseUp(e) {
-    if (!isDragging.current) return;
-    commitDrag(getCellAt(e.clientX, e.clientY));
+
+    // Attach move/up to window so we never miss the mouseup
+    cleanupMouseListeners();
+    mouseMoveRef.current = (ev) => {
+      if (!isDragging.current) return;
+      const c = getCellAt(ev.clientX, ev.clientY);
+      if (c) { setDragEnd(c); dragEndRef.current = c; }
+    };
+    mouseUpRef.current = (ev) => {
+      if (!isDragging.current) return;
+      commitDrag(getCellAt(ev.clientX, ev.clientY));
+      cleanupMouseListeners();
+    };
+    window.addEventListener('mousemove', mouseMoveRef.current);
+    window.addEventListener('mouseup',   mouseUpRef.current);
   }
 
   function removePatch(r, c) {
@@ -1097,7 +1111,7 @@ function PatchesGame({ state, setState }) {
           </div>
 
           <div className="patches-board-card" ref={boardRef}
-            onMouseDown={onMouseDown} onMouseMove={onMouseMove} onMouseUp={onMouseUp}
+            onMouseDown={onMouseDown}
             style={{touchAction:'none', userSelect:'none'}}
           >
             <div className="patches-grid" style={{gridTemplateColumns:`repeat(${S},1fr)`,gridTemplateRows:`repeat(${S},1fr)`}}>
