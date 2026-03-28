@@ -202,27 +202,33 @@ function generatePatches() {
   // ── Solver: counts complete valid tilings up to limit ─────────────────────
   function countSolutions(pList, limit=2) {
     const n = pList.length;
-    const placed = Array(n).fill(null);
     let count = 0;
-    function solve(idx) {
+    // Occupancy grid — avoids pairwise overlap checks and coverage verification
+    const occ = Array.from({length:PSIZE},()=>Array(PSIZE).fill(false));
+    let filled = 0;
+    const total = PSIZE * PSIZE;
+
+    // Sort by fewest candidates first — prunes early
+    const order = [...Array(n).keys()].sort((a,b) => pList[a].cands.length - pList[b].cands.length);
+
+    function solve(step) {
       if(count >= limit) return;
-      if(idx === n) {
-        // Verify full coverage
-        const g = Array.from({length:PSIZE},()=>Array(PSIZE).fill(0));
-        for(const p of placed) for(let r=p[0];r<=p[2];r++) for(let c=p[1];c<=p[3];c++) g[r][c]++;
-        if(g.every(row=>row.every(v=>v===1))) count++;
-        return;
-      }
+      if(step === n) { if(filled === total) count++; return; }
+      const idx = order[step];
       for(const cand of pList[idx].cands) {
+        const [r1,c1,r2,c2] = cand;
+        // Check occupancy
         let ok = true;
-        for(let i=0;i<idx&&ok;i++){
-          const p=placed[i];
-          if(!(cand[2]<p[0]||cand[0]>p[2]||cand[3]<p[1]||cand[1]>p[3])) ok=false;
-        }
+        for(let r=r1;r<=r2&&ok;r++) for(let c=c1;c<=c2&&ok;c++) if(occ[r][c]) ok=false;
         if(!ok) continue;
-        placed[idx]=cand;
-        solve(idx+1);
-        placed[idx]=null;
+        // Place
+        const area = (r2-r1+1)*(c2-c1+1);
+        for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++) occ[r][c]=true;
+        filled += area;
+        solve(step+1);
+        // Unplace
+        for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++) occ[r][c]=false;
+        filled -= area;
         if(count>=limit) return;
       }
     }
@@ -238,8 +244,8 @@ function generatePatches() {
   // Keeps whichever removal maintains a unique solution.
   // More info removed = harder puzzle that requires cross-patch deduction.
   function minimise(patches) {
-    // Multiple passes — later passes can unlock reductions that failed earlier
-    for (let pass = 0; pass < 3; pass++) {
+    // Two passes — second pass can unlock reductions that failed in the first
+    for (let pass = 0; pass < 2; pass++) {
       const order = shuffle([...Array(patches.length).keys()]);
       for (const i of order) {
         const p = patches[i];
@@ -279,7 +285,7 @@ function generatePatches() {
   // ── Main ──────────────────────────────────────────────────────────────────
   let best = null, bestScore = -1;
 
-  for(let attempt=0; attempt<50; attempt++){
+  for(let attempt=0; attempt<20; attempt++){
     const grid = Array.from({length:PSIZE},()=>Array(PSIZE).fill(-1));
     const rects = [];
     if(!tile(grid,rects,0)) continue;
@@ -318,6 +324,8 @@ function generatePatches() {
       return s;
     }, 0);
     if(score > bestScore){ best = patches; bestScore = score; }
+    // Good enough — stop searching to keep generation fast
+    if(bestScore >= patches.length * 2) break;
   }
 
   if(!best) {
