@@ -230,27 +230,48 @@ function generatePatches() {
     return count;
   }
 
-  // ── Minimise: remove shape info where puzzle stays unique ─────────────────
-  // Try to relax UP TO maxAny patches to 'any', keeping puzzle uniquely solvable.
-  // Only non-square patches can be relaxed — wide/tall shape info is meaningful.
-  // Square patches are already visually self-evident (h===w).
-  function minimise(patches, maxAny=2) {
-    let anyCount = 0;
-    const order = shuffle([...Array(patches.length).keys()]);
-    for(const i of order){
-      if(anyCount >= maxAny) break;
-      const p = patches[i];
-      // Only relax wide/tall — square shape is obvious from badge proportions
-      if(p.clueShape === 'any' || p.clueShape === 'square') continue;
-      const newCands = getCandidates(p.clueR, p.clueC, p.clueNum, 'any');
-      const saved = { shape: p.clueShape, cands: p.cands };
-      p.clueShape = 'any';
-      p.cands = newCands;
-      if(countSolutions(patches) === 1) {
-        anyCount++; // keep — still unique, adds a deduction challenge
-      } else {
-        p.clueShape = saved.shape; // revert — would make puzzle ambiguous
-        p.cands = saved.cands;
+  // ── Minimise: aggressively strip clue info while keeping unique solution ──
+  // Tries three reductions per patch (in random order):
+  //   1. Remove number only  (clueNum → null)
+  //   2. Relax shape only    (clueShape → 'any')
+  //   3. Remove both number AND shape
+  // Keeps whichever removal maintains a unique solution.
+  // More info removed = harder puzzle that requires cross-patch deduction.
+  function minimise(patches) {
+    // Multiple passes — later passes can unlock reductions that failed earlier
+    for (let pass = 0; pass < 3; pass++) {
+      const order = shuffle([...Array(patches.length).keys()]);
+      for (const i of order) {
+        const p = patches[i];
+        const savedNum   = p.clueNum;
+        const savedShape = p.clueShape;
+        const savedCands = p.cands;
+
+        // Build list of reductions to try, strongest first
+        const tries = [];
+        // Try removing both (strongest reduction)
+        if (savedNum !== null || savedShape !== 'any')
+          tries.push({ num: null, shape: 'any' });
+        // Try removing number only
+        if (savedNum !== null)
+          tries.push({ num: null, shape: savedShape });
+        // Try relaxing shape only
+        if (savedShape !== 'any')
+          tries.push({ num: savedNum, shape: 'any' });
+
+        let applied = false;
+        for (const t of tries) {
+          p.clueNum   = t.num;
+          p.clueShape = t.shape;
+          p.cands     = getCandidates(p.clueR, p.clueC, t.num, t.shape);
+          if (countSolutions(patches) === 1) { applied = true; break; }
+        }
+        if (!applied) {
+          // Revert — no reduction kept uniqueness
+          p.clueNum   = savedNum;
+          p.clueShape = savedShape;
+          p.cands     = savedCands;
+        }
       }
     }
   }
@@ -286,11 +307,16 @@ function generatePatches() {
 
     if(countSolutions(patches) !== 1) continue;
 
-    // Relax at most 2 patches to 'any' — keeps puzzle hard but not random
-    minimise(patches, 2);
+    // Strip as much clue info as possible while keeping unique solution
+    minimise(patches);
 
-    // Prefer fewer patches (harder layout)
-    const score = -patches.length;
+    // Score = how much info was removed (higher = harder = better)
+    // Each removed number = 2 pts, each relaxed shape = 1 pt
+    const score = patches.reduce((s, p) => {
+      if (p.clueNum === null) s += 2;
+      if (p.clueShape === 'any') s += 1;
+      return s;
+    }, 0);
     if(score > bestScore){ best = patches; bestScore = score; }
   }
 
